@@ -2,6 +2,7 @@
 import argparse
 import contextlib
 import timeit
+from pathlib import Path
 
 import torch
 import torch.nn.functional as F
@@ -38,6 +39,8 @@ def main():
     p.add_argument("--lr", type=float, default=3e-4)
     p.add_argument("--nvtx", action="store_true")  # nsys/nvtx 标注
     p.add_argument("--device", type=str, default="cuda")
+    p.add_argument("--model-size", type=str, default="")
+    p.add_argument("--result-file", type=str, default="")
     args = p.parse_args()
 
     device = args.device
@@ -116,6 +119,21 @@ def main():
     var = sum((t - mean) ** 2 for t in times) / len(times)
     std = var ** 0.5
     print(f"mean: {mean:.6f}s  std: {std:.6f}s  ({len(times)} steps)")
+
+    if args.result_file:
+        result_path = Path(args.result_file)
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        write_header = not result_path.exists() or result_path.stat().st_size == 0
+        with result_path.open("a", encoding="utf-8") as f:
+            if write_header:
+                f.write(
+                    "model_size,context_length,batch_size,backward,optimizer,mean_s,std_s,steps,device\n"
+                )
+            f.write(
+                f"{args.model_size},{args.context_length},{args.batch_size},"
+                f"{int(args.backward)},{int(args.optimizer)},"
+                f"{mean:.6f},{std:.6f},{len(times)},{device}\n"
+            )
 
 if __name__ == "__main__":
     main()

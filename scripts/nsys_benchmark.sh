@@ -2,6 +2,7 @@
 set -euo pipefail
 
 OUT_DIR=${OUT_DIR:-nsys_reports}
+RESULT_FILE=${RESULT_FILE:-$OUT_DIR/benchmark_times.csv}
 BATCH_SIZE=${BATCH_SIZE:-4}
 WARMUP=${WARMUP:-5}
 STEPS=${STEPS:-10}
@@ -83,6 +84,8 @@ for size in "${sizes[@]}"; do
         --warmup "$WARMUP" \
         --steps "$STEPS" \
         --device "$DEVICE" \
+        --model-size "$label" \
+        --result-file "$RESULT_FILE" \
         --nvtx \
         "${py_args[@]}"; then
       echo "FAILED (likely OOM): size=$label ctx=$ctx" >&2
