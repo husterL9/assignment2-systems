@@ -9,6 +9,7 @@ STEPS=${STEPS:-10}
 DEVICE=${DEVICE:-cuda}
 BACKWARD=${BACKWARD:-0}
 OPTIMIZER=${OPTIMIZER:-0}
+TIME_FORWARD_ONLY=${TIME_FORWARD_ONLY:-1}
 
 mkdir -p "$OUT_DIR"
 
@@ -68,6 +69,9 @@ for size in "${sizes[@]}"; do
     fi
     if [[ "$OPTIMIZER" == "1" ]]; then
       py_args+=(--optimizer)
+    fi
+    if [[ "$TIME_FORWARD_ONLY" == "1" ]]; then
+      py_args+=(--time-forward-only)
     fi
 
     if ! nsys profile \

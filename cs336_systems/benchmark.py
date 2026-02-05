@@ -36,6 +36,7 @@ def main():
     p.add_argument("--steps", type=int, default=10)
     p.add_argument("--backward", action="store_true")  # 是否测前后向
     p.add_argument("--optimizer", action="store_true")  # 是否测优化器 step
+    p.add_argument("--time-forward-only", action="store_true")  # 仅统计 forward 时间
     p.add_argument("--lr", type=float, default=3e-4)
     p.add_argument("--nvtx", action="store_true")  # nsys/nvtx 标注
     p.add_argument("--device", type=str, default="cuda")
@@ -97,6 +98,12 @@ def main():
 
             with nvtx_range("forward", nvtx_enabled):
                 logits = model(x)
+            if args.time_forward_only:
+                if device.startswith("cuda"):
+                    torch.cuda.synchronize()
+                if device == "mps":
+                    torch.mps.synchronize()
+                end = timeit.default_timer()
             if args.backward:
                 assert y is not None
                 with nvtx_range("backward", nvtx_enabled):
@@ -106,19 +113,21 @@ def main():
                 with nvtx_range("optimizer_step", nvtx_enabled):
                     optimizer.step()
 
-            if device.startswith("cuda"):
-                torch.cuda.synchronize()
-            if device == "mps":
-                torch.mps.synchronize()
-                
-            end = timeit.default_timer()
+            if not args.time_forward_only:
+                if device.startswith("cuda"):
+                    torch.cuda.synchronize()
+                if device == "mps":
+                    torch.mps.synchronize()
+                end = timeit.default_timer()
         if i >= args.warmup:
-            times.append(end - start)
+            assert y is not None
+            times.append(end - start) # type: ignore
 
     mean = sum(times) / len(times)
     var = sum((t - mean) ** 2 for t in times) / len(times)
     std = var ** 0.5
-    print(f"mean: {mean:.6f}s  std: {std:.6f}s  ({len(times)} steps)")
+    scope = "forward" if args.time_forward_only else "step"
+    print(f"{scope} mean: {mean:.6f}s  std: {std:.6f}s  ({len(times)} steps)")
 
     if args.result_file:
         result_path = Path(args.result_file)
