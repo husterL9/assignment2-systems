@@ -136,11 +136,12 @@ def main():
         with result_path.open("a", encoding="utf-8") as f:
             if write_header:
                 f.write(
-                    "model_size,context_length,batch_size,backward,optimizer,mean_s,std_s,steps,device\n"
+                    "model_size,context_length,batch_size,backward,optimizer,time_forward_only,mean_s,std_s,steps,device\n"
                 )
             f.write(
                 f"{args.model_size},{args.context_length},{args.batch_size},"
                 f"{int(args.backward)},{int(args.optimizer)},"
+                f"{int(args.time_forward_only)},"
                 f"{mean:.6f},{std:.6f},{len(times)},{device}\n"
             )
 

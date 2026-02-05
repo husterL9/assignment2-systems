@@ -2,7 +2,6 @@
 set -euo pipefail
 
 OUT_DIR=${OUT_DIR:-nsys_reports}
-RESULT_FILE=${RESULT_FILE:-$OUT_DIR/benchmark_times.csv}
 BATCH_SIZE=${BATCH_SIZE:-4}
 WARMUP=${WARMUP:-5}
 STEPS=${STEPS:-10}
@@ -10,6 +9,13 @@ DEVICE=${DEVICE:-cuda}
 BACKWARD=${BACKWARD:-0}
 OPTIMIZER=${OPTIMIZER:-0}
 TIME_FORWARD_ONLY=${TIME_FORWARD_ONLY:-1}
+
+ts=$(date +%Y%m%d_%H%M%S)
+fo_suffix=""
+if [[ "$TIME_FORWARD_ONLY" == "1" ]]; then
+  fo_suffix="_time-forward-only"
+fi
+RESULT_FILE=${RESULT_FILE:-$OUT_DIR/benchmark_times${fo_suffix}_${ts}.csv}
 
 mkdir -p "$OUT_DIR"
 
@@ -60,7 +66,7 @@ for size in "${sizes[@]}"; do
   esac
 
   for ctx in "${contexts[@]}"; do
-    out_base="$OUT_DIR/${label}_ctx${ctx}_backward${BACKWARD}_optimizer${OPTIMIZER}"
+    out_base="$OUT_DIR/${label}_ctx${ctx}_backward${BACKWARD}_optimizer${OPTIMIZER}${fo_suffix}_${ts}"
     echo "==> size=$label ctx=$ctx"
 
     py_args=()
