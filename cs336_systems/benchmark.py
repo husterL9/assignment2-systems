@@ -98,12 +98,12 @@ def main():
 
             with nvtx_range("forward", nvtx_enabled):
                 logits = model(x)
-            if args.time_forward_only:
-                if device.startswith("cuda"):
-                    torch.cuda.synchronize()
-                if device == "mps":
-                    torch.mps.synchronize()
-                end = timeit.default_timer()
+                if args.time_forward_only:
+                    if device.startswith("cuda"):
+                        torch.cuda.synchronize()
+                    if device == "mps":
+                        torch.mps.synchronize()
+                    end = timeit.default_timer()
             if args.backward:
                 assert y is not None
                 with nvtx_range("backward", nvtx_enabled):
