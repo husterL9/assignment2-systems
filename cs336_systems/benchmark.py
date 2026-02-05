@@ -120,7 +120,6 @@ def main():
                     torch.mps.synchronize()
                 end = timeit.default_timer()
         if i >= args.warmup:
-            assert y is not None
             times.append(end - start) # type: ignore
 
     mean = sum(times) / len(times)
