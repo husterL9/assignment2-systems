@@ -9,13 +9,16 @@ DEVICE=${DEVICE:-cuda}
 BACKWARD=${BACKWARD:-0}
 OPTIMIZER=${OPTIMIZER:-0}
 TIME_FORWARD_ONLY=${TIME_FORWARD_ONLY:-1}
-
+TRACE=${TRACE:-cuda,nvtx,osrt}
+PYTORCH=${PYTORCH:-}
+# trace_label=${TRACE//,/+}
+pytorch_label=${PYTORCH//,/+}
 ts=$(date +%Y%m%d_%H%M%S)
 fo_suffix=""
 if [[ "$TIME_FORWARD_ONLY" == "1" ]]; then
   fo_suffix="_time-forward-only"
 fi
-RESULT_FILE=${RESULT_FILE:-$OUT_DIR/benchmark_times${fo_suffix}_${ts}.csv}
+RESULT_FILE=${RESULT_FILE:-$OUT_DIR/benchmark_times${fo_suffix}_pytorch${pytorch_label}_${ts}.csv}
 
 mkdir -p "$OUT_DIR"
 
@@ -66,7 +69,7 @@ for size in "${sizes[@]}"; do
   esac
 
   for ctx in "${contexts[@]}"; do
-    out_base="$OUT_DIR/${label}_ctx${ctx}_backward${BACKWARD}_optimizer${OPTIMIZER}${fo_suffix}_${ts}"
+    out_base="$OUT_DIR/${label}_ctx${ctx}_backward${BACKWARD}_optimizer${OPTIMIZER}${fo_suffix}_pytorch${pytorch_label}_${ts}"
     echo "==> size=$label ctx=$ctx"
 
     py_args=()
