@@ -85,7 +85,8 @@ for size in "${sizes[@]}"; do
 
     if ! nsys profile \
       --force-overwrite true \
-      --trace=cuda,nvtx \
+      --trace="$TRACE" \
+      --pytorch="$PYTORCH"
       -o "$out_base" \
       uv run python -m cs336_systems.benchmark \
         --context-length "$ctx" \
