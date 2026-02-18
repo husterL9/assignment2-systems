@@ -102,7 +102,7 @@ for size in "${sizes[@]}"; do
         --result-file "$RESULT_FILE" \
         --nvtx \
         "${py_args[@]}"; then
-      echo "FAILED (likely OOM): size=$label ctx=$ctx" >&2
+      echo "FAILED: size=$label ctx=$ctx (see error above)" >&2
     fi
   done
   echo
