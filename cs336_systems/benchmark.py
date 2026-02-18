@@ -1,6 +1,6 @@
 # benchmark.py
 import argparse
-import contextlib
+import os
 import timeit
 from pathlib import Path
 
@@ -8,18 +8,8 @@ import torch
 import torch.nn.functional as F
 
 from cs336_basics.model import BasicsTransformerLM
+from cs336_basics.utils import nvtx_is_enabled, nvtx_range
 from typing import Optional
-
-
-@contextlib.contextmanager
-def nvtx_range(message: str, enabled: bool):
-    if enabled:
-        torch.cuda.nvtx.range_push(message)
-    try:
-        yield
-    finally:
-        if enabled:
-            torch.cuda.nvtx.range_pop()
 
 
 def main():
@@ -43,6 +33,9 @@ def main():
     p.add_argument("--model-size", type=str, default="")
     p.add_argument("--result-file", type=str, default="")
     args = p.parse_args()
+
+    if args.nvtx:
+        os.environ["CS336_NVTX"] = "1"
 
     device = args.device
     if device.startswith("cuda") and not torch.cuda.is_available():
@@ -72,12 +65,7 @@ def main():
     if args.backward:
         y = torch.randint(0, args.vocab_size, (args.batch_size, args.context_length), device=device)
 
-    nvtx_enabled = (
-        args.nvtx
-        and device.startswith("cuda")
-        and torch.cuda.is_available()
-        and hasattr(torch.cuda, "nvtx")
-    )
+    nvtx_enabled = nvtx_is_enabled(args.nvtx) and device.startswith("cuda")
 
     times = []
     for i in range(args.warmup + args.steps):

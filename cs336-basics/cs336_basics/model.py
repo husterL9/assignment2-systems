@@ -15,6 +15,7 @@ from jaxtyping import Float, Bool, Int
 
 
 from .nn_utils import softmax
+from .utils import nvtx_range
 
 logger = logging.getLogger(__name__)
 
@@ -427,7 +428,8 @@ def scaled_dot_product_attention(
     if mask is not None:
         attention_scores = torch.where(mask, attention_scores, float("-inf"))
 
-    attention_weights = softmax(attention_scores, dim=-1)  # Softmax over the key dimension
+    with nvtx_range("sdpa_softmax"):
+        attention_weights = softmax(attention_scores, dim=-1)  # Softmax over the key dimension
 
     return einsum(attention_weights, V, "... query key, ... key d_v ->  ... query d_v")
 
@@ -513,7 +515,8 @@ class CausalMultiHeadSelfAttention(nn.Module):
         causal_mask = qi >= kj  # (query, key)
 
         # Shape: (..., num_heads, sequence_length, d_k)
-        attn_output = scaled_dot_product_attention(K=K, Q=Q, V=V, mask=causal_mask)
+        with nvtx_range("sdpa"):
+            attn_output = scaled_dot_product_attention(K=K, Q=Q, V=V, mask=causal_mask)
 
         # Concatenate the attention output from all heads.
         # (..., sequence_length, num_heads * d_v).
