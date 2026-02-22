@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Part (a): inspect dtypes under CUDA autocast(fp16) mixed precision."""
+"""Part (a): inspect dtypes under CUDA autocast mixed precision."""
 
 import torch
 import torch.nn as nn
@@ -21,10 +21,7 @@ class ToyModel(nn.Module):
         return logits, fc1_out, ln_out
 
 
-def main() -> None:
-    if not torch.cuda.is_available():
-        raise RuntimeError("This script expects a CUDA GPU for fp16 autocast.")
-
+def inspect_with_autocast(autocast_dtype: torch.dtype, label: str) -> None:
     device = "cuda"
     torch.manual_seed(0)
 
@@ -38,7 +35,7 @@ def main() -> None:
     x = torch.randn(batch_size, in_features, device=device, dtype=torch.float32)
     target = torch.randint(0, out_features, (batch_size,), device=device, dtype=torch.long)
 
-    with torch.autocast(device_type="cuda", dtype=torch.float16):
+    with torch.autocast(device_type="cuda", dtype=autocast_dtype):
         logits, fc1_out, ln_out = model(x)
         loss = F.cross_entropy(logits, target)
 
@@ -47,12 +44,21 @@ def main() -> None:
     param_dtypes = sorted({str(p.dtype) for p in model.parameters()})
     grad_dtypes = sorted({str(p.grad.dtype) for p in model.parameters() if p.grad is not None})
 
+    print(f"\n=== autocast dtype: {label} ===")
     print(f"model params dtypes (inside autocast): {param_dtypes}")
     print(f"fc1 output dtype: {fc1_out.dtype}")
     print(f"layernorm output dtype: {ln_out.dtype}")
     print(f"logits dtype: {logits.dtype}")
     print(f"loss dtype: {loss.dtype}")
     print(f"grad dtypes: {grad_dtypes}")
+
+
+def main() -> None:
+    if not torch.cuda.is_available():
+        raise RuntimeError("This script expects a CUDA GPU for autocast.")
+
+    inspect_with_autocast(torch.float16, "float16")
+    inspect_with_autocast(torch.bfloat16, "bfloat16")
 
 
 if __name__ == "__main__":
