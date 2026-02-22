@@ -10,6 +10,7 @@ BACKWARD=${BACKWARD:-0}
 OPTIMIZER=${OPTIMIZER:-0}
 TIME_FORWARD_ONLY=${TIME_FORWARD_ONLY:-1}
 MIXED_PRECISION=${MIXED_PRECISION:-none}
+USE_NSYS=${USE_NSYS:-1}
 TRACE=${TRACE:-cuda,nvtx,osrt}
 PYTORCH=${PYTORCH:-}
 # trace_label=${TRACE//,/+}
@@ -75,7 +76,7 @@ for size in "${sizes[@]}"; do
 
   for ctx in "${contexts[@]}"; do
     out_base="$OUT_DIR/${label}_ctx${ctx}_backward${BACKWARD}_optimizer${OPTIMIZER}${fo_suffix}${mp_suffix}_pytorch${pytorch_label}_${ts}"
-    echo "==> size=$label ctx=$ctx precision=$MIXED_PRECISION"
+    echo "==> size=$label ctx=$ctx precision=$MIXED_PRECISION use_nsys=$USE_NSYS"
 
     py_args=()
     if [[ "$BACKWARD" == "1" ]]; then
@@ -88,11 +89,7 @@ for size in "${sizes[@]}"; do
       py_args+=(--time-forward-only)
     fi
 
-    if ! nsys profile \
-      --force-overwrite true \
-      --trace="$TRACE" \
-      --pytorch="$PYTORCH" \
-      -o "$out_base" \
+    bench_cmd=(
       uv run python -m cs336_systems.benchmark \
         --context-length "$ctx" \
         --d-model "$d_model" \
@@ -106,9 +103,23 @@ for size in "${sizes[@]}"; do
         --model-size "$label" \
         --result-file "$RESULT_FILE" \
         --mixed-precision "$MIXED_PRECISION" \
-        --nvtx \
-        "${py_args[@]}"; then
-      echo "FAILED: size=$label ctx=$ctx (see error above)" >&2
+        "${py_args[@]}"
+    )
+
+    if [[ "$USE_NSYS" == "1" ]]; then
+      bench_cmd+=(--nvtx)
+      if ! nsys profile \
+        --force-overwrite true \
+        --trace="$TRACE" \
+        --pytorch="$PYTORCH" \
+        -o "$out_base" \
+        "${bench_cmd[@]}"; then
+        echo "FAILED: size=$label ctx=$ctx (see error above)" >&2
+      fi
+    else
+      if ! "${bench_cmd[@]}"; then
+        echo "FAILED: size=$label ctx=$ctx (see error above)" >&2
+      fi
     fi
   done
   echo
