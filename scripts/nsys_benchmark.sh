@@ -9,6 +9,7 @@ DEVICE=${DEVICE:-cuda}
 BACKWARD=${BACKWARD:-0}
 OPTIMIZER=${OPTIMIZER:-0}
 TIME_FORWARD_ONLY=${TIME_FORWARD_ONLY:-1}
+MIXED_PRECISION=${MIXED_PRECISION:-none}
 TRACE=${TRACE:-cuda,nvtx,osrt}
 PYTORCH=${PYTORCH:-}
 # trace_label=${TRACE//,/+}
@@ -18,7 +19,11 @@ fo_suffix=""
 if [[ "$TIME_FORWARD_ONLY" == "1" ]]; then
   fo_suffix="_time-forward-only"
 fi
-RESULT_FILE=${RESULT_FILE:-$OUT_DIR/benchmark_times${fo_suffix}_pytorch${pytorch_label}_${ts}.csv}
+mp_suffix=""
+if [[ "$MIXED_PRECISION" != "none" ]]; then
+  mp_suffix="_mp-${MIXED_PRECISION}"
+fi
+RESULT_FILE=${RESULT_FILE:-$OUT_DIR/benchmark_times${fo_suffix}${mp_suffix}_pytorch${pytorch_label}_${ts}.csv}
 
 mkdir -p "$OUT_DIR"
 
@@ -69,8 +74,8 @@ for size in "${sizes[@]}"; do
   esac
 
   for ctx in "${contexts[@]}"; do
-    out_base="$OUT_DIR/${label}_ctx${ctx}_backward${BACKWARD}_optimizer${OPTIMIZER}${fo_suffix}_pytorch${pytorch_label}_${ts}"
-    echo "==> size=$label ctx=$ctx"
+    out_base="$OUT_DIR/${label}_ctx${ctx}_backward${BACKWARD}_optimizer${OPTIMIZER}${fo_suffix}${mp_suffix}_pytorch${pytorch_label}_${ts}"
+    echo "==> size=$label ctx=$ctx precision=$MIXED_PRECISION"
 
     py_args=()
     if [[ "$BACKWARD" == "1" ]]; then
@@ -100,6 +105,7 @@ for size in "${sizes[@]}"; do
         --device "$DEVICE" \
         --model-size "$label" \
         --result-file "$RESULT_FILE" \
+        --mixed-precision "$MIXED_PRECISION" \
         --nvtx \
         "${py_args[@]}"; then
       echo "FAILED: size=$label ctx=$ctx (see error above)" >&2

@@ -2,6 +2,7 @@
 import argparse
 import os
 import timeit
+from contextlib import nullcontext
 from pathlib import Path
 
 import torch
@@ -9,7 +10,7 @@ import torch.nn.functional as F
 
 from cs336_basics.model import BasicsTransformerLM
 from cs336_basics.utils import nvtx_is_enabled, nvtx_range
-from typing import Optional
+from typing import Callable, Optional
 
 
 def main():
@@ -32,6 +33,12 @@ def main():
     p.add_argument("--device", type=str, default="cuda")
     p.add_argument("--model-size", type=str, default="")
     p.add_argument("--result-file", type=str, default="")
+    p.add_argument(
+        "--mixed-precision",
+        choices=("none", "bf16"),
+        default="none",
+        help="Optional mixed precision mode. 'bf16' enables autocast with bfloat16.",
+    )
     args = p.parse_args()
 
     if args.nvtx:
@@ -42,6 +49,14 @@ def main():
         device = "cpu"
     if args.optimizer and not args.backward:
         args.backward = True
+    if args.mixed_precision == "bf16" and not device.startswith("cuda"):
+        raise ValueError("--mixed-precision bf16 requires a CUDA device.")
+
+    autocast_context: Callable[[], object]
+    if args.mixed_precision == "bf16":
+        autocast_context = lambda: torch.autocast(device_type="cuda", dtype=torch.bfloat16)
+    else:
+        autocast_context = nullcontext
 
     model = BasicsTransformerLM(
         vocab_size=args.vocab_size,
@@ -85,7 +100,8 @@ def main():
             start = timeit.default_timer()
 
             with nvtx_range("forward", nvtx_enabled):
-                logits = model(x)
+                with autocast_context():
+                    logits = model(x)
                 if args.time_forward_only:
                     if device.startswith("cuda"):
                         torch.cuda.synchronize()
@@ -95,7 +111,8 @@ def main():
             if args.backward:
                 assert y is not None
                 with nvtx_range("backward", nvtx_enabled):
-                    loss = F.cross_entropy(logits.reshape(-1, args.vocab_size), y.reshape(-1))
+                    with autocast_context():
+                        loss = F.cross_entropy(logits.reshape(-1, args.vocab_size), y.reshape(-1))
                     loss.backward()
             if optimizer is not None:
                 with nvtx_range("optimizer_step", nvtx_enabled):
@@ -114,7 +131,10 @@ def main():
     var = sum((t - mean) ** 2 for t in times) / len(times)
     std = var ** 0.5
     scope = "forward" if args.time_forward_only else "step"
-    print(f"{scope} mean: {mean:.6f}s  std: {std:.6f}s  ({len(times)} steps)")
+    print(
+        f"{scope} mean: {mean:.6f}s  std: {std:.6f}s  ({len(times)} steps)  "
+        f"precision={args.mixed_precision}"
+    )
 
     if args.result_file:
         result_path = Path(args.result_file)
@@ -123,12 +143,12 @@ def main():
         with result_path.open("a", encoding="utf-8") as f:
             if write_header:
                 f.write(
-                    "model_size,context_length,batch_size,backward,optimizer,time_forward_only,mean_s,std_s,steps,device\n"
+                    "model_size,context_length,batch_size,backward,optimizer,time_forward_only,mixed_precision,mean_s,std_s,steps,device\n"
                 )
             f.write(
                 f"{args.model_size},{args.context_length},{args.batch_size},"
                 f"{int(args.backward)},{int(args.optimizer)},"
-                f"{int(args.time_forward_only)},"
+                f"{int(args.time_forward_only)},{args.mixed_precision},"
                 f"{mean:.6f},{std:.6f},{len(times)},{device}\n"
             )
 
