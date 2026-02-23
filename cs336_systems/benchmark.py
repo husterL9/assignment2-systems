@@ -39,6 +39,23 @@ def main():
         default="none",
         help="Optional mixed precision mode. 'bf16' enables autocast with bfloat16.",
     )
+    p.add_argument(
+        "--memory-profile",
+        action="store_true",
+        help="Record CUDA memory history after warmup and dump a snapshot pickle at the end.",
+    )
+    p.add_argument(
+        "--memory-snapshot-file",
+        type=str,
+        default="",
+        help="Output path for torch.cuda memory snapshot pickle.",
+    )
+    p.add_argument(
+        "--memory-max-entries",
+        type=int,
+        default=1_000_000,
+        help="Maximum number of entries in CUDA memory history recording.",
+    )
     args = p.parse_args()
 
     if args.nvtx:
@@ -51,12 +68,23 @@ def main():
         args.backward = True
     if args.mixed_precision == "bf16" and not device.startswith("cuda"):
         raise ValueError("--mixed-precision bf16 requires a CUDA device.")
+    if args.memory_profile and not device.startswith("cuda"):
+        raise ValueError("--memory-profile requires a CUDA device.")
 
     autocast_context: Callable[[], object]
     if args.mixed_precision == "bf16":
         autocast_context = lambda: torch.autocast(device_type="cuda", dtype=torch.bfloat16)
     else:
         autocast_context = nullcontext
+
+    memory_snapshot_file = args.memory_snapshot_file
+    if args.memory_profile and not memory_snapshot_file:
+        run_mode = "train" if args.backward else "inference"
+        model_label = args.model_size or f"d{args.d_model}_l{args.num_layers}"
+        memory_snapshot_file = str(
+            Path("memory_profiles")
+            / f"memory_snapshot_{model_label}_{run_mode}_{args.mixed_precision}.pickle"
+        )
 
     model = BasicsTransformerLM(
         vocab_size=args.vocab_size,
@@ -83,49 +111,67 @@ def main():
     nvtx_enabled = nvtx_is_enabled(args.nvtx) and device.startswith("cuda")
 
     times = []
-    for i in range(args.warmup + args.steps):
-        is_warmup = i < args.warmup
-        step_label = "step_warmup" if is_warmup else "step_measured"
-        if args.backward:
-            if optimizer is not None:
-                optimizer.zero_grad(set_to_none=True)
-            else:
-                model.zero_grad(set_to_none=True)
+    memory_recording_started = False
+    try:
+        for i in range(args.warmup + args.steps):
+            is_warmup = i < args.warmup
+            step_label = "step_warmup" if is_warmup else "step_measured"
 
-        with nvtx_range(step_label, nvtx_enabled):
-            if device.startswith("cuda"):
+            if args.memory_profile and i == args.warmup and not memory_recording_started:
                 torch.cuda.synchronize()
-            if device == "mps":
-                torch.mps.synchronize()
-            start = timeit.default_timer()
+                torch.cuda.memory._record_memory_history(max_entries=args.memory_max_entries)
+                memory_recording_started = True
+                print(
+                    f"[memory-profile] recording started (max_entries={args.memory_max_entries})"
+                )
 
-            with nvtx_range("forward", nvtx_enabled):
-                with autocast_context():
-                    logits = model(x)
-                if args.time_forward_only:
+            if args.backward:
+                if optimizer is not None:
+                    optimizer.zero_grad(set_to_none=True)
+                else:
+                    model.zero_grad(set_to_none=True)
+
+            with nvtx_range(step_label, nvtx_enabled):
+                if device.startswith("cuda"):
+                    torch.cuda.synchronize()
+                if device == "mps":
+                    torch.mps.synchronize()
+                start = timeit.default_timer()
+
+                with nvtx_range("forward", nvtx_enabled):
+                    with autocast_context():
+                        logits = model(x)
+                    if args.time_forward_only:
+                        if device.startswith("cuda"):
+                            torch.cuda.synchronize()
+                        if device == "mps":
+                            torch.mps.synchronize()
+                        end = timeit.default_timer()
+                if args.backward:
+                    assert y is not None
+                    with nvtx_range("backward", nvtx_enabled):
+                        with autocast_context():
+                            loss = F.cross_entropy(logits.reshape(-1, args.vocab_size), y.reshape(-1))
+                        loss.backward()
+                if optimizer is not None:
+                    with nvtx_range("optimizer_step", nvtx_enabled):
+                        optimizer.step()
+
+                if not args.time_forward_only:
                     if device.startswith("cuda"):
                         torch.cuda.synchronize()
                     if device == "mps":
                         torch.mps.synchronize()
                     end = timeit.default_timer()
-            if args.backward:
-                assert y is not None
-                with nvtx_range("backward", nvtx_enabled):
-                    with autocast_context():
-                        loss = F.cross_entropy(logits.reshape(-1, args.vocab_size), y.reshape(-1))
-                    loss.backward()
-            if optimizer is not None:
-                with nvtx_range("optimizer_step", nvtx_enabled):
-                    optimizer.step()
-
-            if not args.time_forward_only:
-                if device.startswith("cuda"):
-                    torch.cuda.synchronize()
-                if device == "mps":
-                    torch.mps.synchronize()
-                end = timeit.default_timer()
-        if i >= args.warmup:
-            times.append(end - start) # type: ignore
+            if i >= args.warmup:
+                times.append(end - start) # type: ignore
+    finally:
+        if args.memory_profile and memory_recording_started:
+            snapshot_path = Path(memory_snapshot_file)
+            snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+            torch.cuda.memory._dump_snapshot(str(snapshot_path))
+            torch.cuda.memory._record_memory_history(enabled=None)
+            print(f"[memory-profile] snapshot saved to {snapshot_path}")
 
     mean = sum(times) / len(times)
     var = sum((t - mean) ** 2 for t in times) / len(times)

@@ -9,8 +9,11 @@ DEVICE=${DEVICE:-cuda}
 BACKWARD=${BACKWARD:-0}
 OPTIMIZER=${OPTIMIZER:-0}
 TIME_FORWARD_ONLY=${TIME_FORWARD_ONLY:-1}
+# none,bf16
 MIXED_PRECISION=${MIXED_PRECISION:-none}
 USE_NSYS=${USE_NSYS:-1}
+MEMORY_PROFILE=${MEMORY_PROFILE:-0}
+MEMORY_MAX_ENTRIES=${MEMORY_MAX_ENTRIES:-1000000}
 TRACE=${TRACE:-cuda,nvtx,osrt}
 PYTORCH=${PYTORCH:-}
 # trace_label=${TRACE//,/+}
@@ -25,8 +28,10 @@ if [[ "$MIXED_PRECISION" != "none" ]]; then
   mp_suffix="_mp-${MIXED_PRECISION}"
 fi
 RESULT_FILE=${RESULT_FILE:-$OUT_DIR/benchmark_times${fo_suffix}${mp_suffix}_pytorch${pytorch_label}_${ts}.csv}
+MEMORY_SNAPSHOT_DIR=${MEMORY_SNAPSHOT_DIR:-$OUT_DIR/memory_snapshots}
 
 mkdir -p "$OUT_DIR"
+mkdir -p "$MEMORY_SNAPSHOT_DIR"
 
 sizes=(small medium large xl 2_7b)
 contexts=(128 256 512 1024)
@@ -76,7 +81,7 @@ for size in "${sizes[@]}"; do
 
   for ctx in "${contexts[@]}"; do
     out_base="$OUT_DIR/${label}_ctx${ctx}_backward${BACKWARD}_optimizer${OPTIMIZER}${fo_suffix}${mp_suffix}_pytorch${pytorch_label}_${ts}"
-    echo "==> size=$label ctx=$ctx precision=$MIXED_PRECISION use_nsys=$USE_NSYS"
+    echo "==> size=$label ctx=$ctx precision=$MIXED_PRECISION use_nsys=$USE_NSYS memory_profile=$MEMORY_PROFILE"
 
     py_args=()
     if [[ "$BACKWARD" == "1" ]]; then
@@ -87,6 +92,14 @@ for size in "${sizes[@]}"; do
     fi
     if [[ "$TIME_FORWARD_ONLY" == "1" ]]; then
       py_args+=(--time-forward-only)
+    fi
+    if [[ "$MEMORY_PROFILE" == "1" ]]; then
+      snapshot_file="$MEMORY_SNAPSHOT_DIR/${label}_ctx${ctx}_backward${BACKWARD}_optimizer${OPTIMIZER}${fo_suffix}${mp_suffix}.pickle"
+      py_args+=(
+        --memory-profile
+        --memory-max-entries "$MEMORY_MAX_ENTRIES"
+        --memory-snapshot-file "$snapshot_file"
+      )
     fi
 
     bench_cmd=(
