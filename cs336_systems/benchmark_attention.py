@@ -18,6 +18,7 @@ import csv
 import gc
 import os
 import time
+from datetime import datetime
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -283,11 +284,19 @@ def main() -> None:
     p.add_argument("--device", type=str, default="cuda")
     p.add_argument("--dtype", choices=("float32", "float16", "bfloat16"), default="float32")
     p.add_argument("--nvtx", action="store_true", help="Enable NVTX ranges (sets CS336_NVTX=1).")
-    p.add_argument("--result-file", type=str, default="")
+    p.add_argument(
+        "--result-file",
+        type=str,
+        default="",
+    )
     args = p.parse_args()
 
     if args.nvtx:
         os.environ["CS336_NVTX"] = "1"
+
+    if not args.result_file:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        args.result_file = f"nsys_reports/attention_benchmark_{ts}.csv"
 
     if args.batch_size != 8:
         print(f"[warning] assignment asks for batch size 8; got batch size {args.batch_size}")
