@@ -167,3 +167,4 @@ cython_debug/
 *.nsys-rep
 *reports/
 *copy.*
+learn_torch_compile/
