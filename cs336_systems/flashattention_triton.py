@@ -156,5 +156,4 @@ class MyFlashAttention2Func(torch.autograd.Function):
     def backward(ctx: Any,*grad_outputs) -> Any:
         saved = cast(tuple[Tensor, Tensor, Tensor, Tensor, Tensor], ctx.saved_tensors)
         L, Q, K, V, O = saved
-
         raise NotImplementedError

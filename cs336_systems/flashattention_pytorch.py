@@ -66,11 +66,23 @@ class MyFlashAttention2Func(torch.autograd.Function):
         O=O_flatten.reshape(output_O_dims)
         L=L_flatten.reshape(output_L_dims)
         ctx.save_for_backward(L, Q, K, V, O)
+        setattr(ctx, "is_causal", is_causal)   
         return O
     
     @staticmethod 
     def backward(ctx: Any,*grad_outputs) -> Any:
         saved = cast(tuple[Tensor, Tensor, Tensor, Tensor, Tensor], ctx.saved_tensors)
         L, Q, K, V, O = saved
+        dim_d=Q.shape[-1]
+        scale=math.sqrt(dim_d)
+        dO=grad_outputs[0]
+        D = (O * dO).sum(dim=-1, keepdim=True)   # shape: (... ,n ,1)
+        S=torch.matmul(Q,K.transpose(-1,-2))/scale
+        P=torch.exp(S-L.unsqueeze(-1))
+        dV=torch.matmul(P.transpose(-1,-2),dO)  #  shape：(...,n,dv)
+        dP=torch.matmul(dO,V.transpose(-1,-2))   #  shape：(...,n,n)
+        dS = P * (dP - D)                        # shape: (... ,n,n)
 
-        raise NotImplementedError
+        dQ=torch.matmul(dS,K)/scale
+        dK=torch.matmul(dS.transpose(-1,-2),Q)/scale
+        return dQ,dK,dV,None
