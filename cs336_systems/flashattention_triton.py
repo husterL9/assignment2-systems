@@ -21,6 +21,7 @@ def flash_fwd_kernel(
     D: tl.constexpr, 
     Q_TILE_SIZE: tl.constexpr, 
     K_TILE_SIZE: tl.constexpr,
+    IS_CAUSAL:tl.constexpr
 ):
     # Program indices  
     query_tile_index = tl.program_id(0) 
@@ -74,6 +75,7 @@ def flash_fwd_kernel(
     m=tl.full((Q_TILE_SIZE,),float("-inf"),dtype=tl.float32)
     #(Q_TILE_SIZE,D)
     Q_tile=tl.load(Q_block_ptr,boundary_check=(0,1),padding_option="zero")
+    q_idx = query_tile_index * Q_TILE_SIZE + tl.arange(0,Q_TILE_SIZE)   # shape [B_q]
     for i in range(tl.cdiv(N_KEYS, K_TILE_SIZE)):
         # Load the current block pointer
         # Since Q_TILE_SIZE might not divide N_QUERIES and K_TILE_SIZE might not divide N_KEYS,
@@ -86,6 +88,10 @@ def flash_fwd_kernel(
         # Compute the weighted sum of the row.
         #(Bq,Bk) Compute tile of pre-softmax attention scores 
         S_tile=tl.dot(Q_tile,K_tile)*scale
+        if IS_CAUSAL is True:
+            k_idx = i*K_TILE_SIZE + tl.arange(0, K_TILE_SIZE)   # shape [B_k]
+            mask = q_idx[:, None] >= k_idx[None, :]
+            S_tile = tl.where(mask, S_tile, -1e6)
         rowmax = tl.max(S_tile, axis=1)
         m_new = tl.maximum(m, rowmax)
         P_tile = tl.exp(S_tile - m_new[:, None])
@@ -143,6 +149,7 @@ class MyFlashAttention2Func(torch.autograd.Function):
         O=O_flatten.reshape(output_O_dims)
         L=L_flatten.reshape(output_L_dims)
         ctx.save_for_backward(L, Q, K, V, O)
+        setattr(ctx, "is_causal", is_causal)        
         return O
     
     @staticmethod 
