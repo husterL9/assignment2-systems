@@ -144,7 +144,7 @@ class MyFlashAttention2Func(torch.autograd.Function):
             L_flatten.stride(0),L_flatten.stride(1),
             dim_n_queries,dim_k_keys,
             scale_attention,
-            dim_d,Bq,Bk # type: ignore[arg-type]
+            dim_d,Bq,Bk,is_causal # type: ignore[arg-type]
         )
         O=O_flatten.reshape(output_O_dims)
         L=L_flatten.reshape(output_L_dims)
