@@ -64,9 +64,9 @@ def flash_fwd_kernel(
         L_ptr + batch_index *stride_lb ,
         shape=(N_QUERIES,),
         strides=(stride_lq,),
-        offsets=(query_tile_index * Q_TILE_SIZE, 0),
+        offsets=(query_tile_index * Q_TILE_SIZE,),
         block_shape=(Q_TILE_SIZE,), 
-        order=(1,0),
+        order=(0,),
     )
     # Initialize a buffer to write to
     output_O = tl.zeros((Q_TILE_SIZE,D), dtype=tl.float32)
