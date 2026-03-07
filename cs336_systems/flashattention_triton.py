@@ -89,13 +89,15 @@ def flash_fwd_kernel(
         rowmax = tl.max(S_tile, axis=1)
         m_new = tl.maximum(m, rowmax)
         P_tile = tl.exp(S_tile - m_new[:, None])
+        P_tile = P_tile.to(V_tile.dtype)
         # (Q_TILE_SIZE,)
         alpha = tl.exp(m - m_new)
         m = m_new  
         # (Q_TILE_SIZE,)                  
         l = alpha * l + tl.sum(P_tile, axis=1)      
         # (Q_TILE_SIZE, Dv)
-        output_O = alpha[:, None] * output_O + tl.dot(P_tile, V_tile)   
+        output_O = alpha[:, None] * output_O
+        output_O = tl.dot(P_tile, V_tile, acc=output_O)
         # Move the pointers to the next tile.
         K_block_ptr = K_block_ptr.advance((0,K_TILE_SIZE))
         V_block_ptr=V_block_ptr.advance((K_TILE_SIZE,0))
@@ -104,6 +106,7 @@ def flash_fwd_kernel(
     output_O = output_O * scale_O      # (Q_TILE_SIZE, Dv)        
     logsumexp_l = tl.log(l)      # (Q_TILE_SIZE,)
     L = m + logsumexp_l        # (Q_TILE_SIZE,)
+    output_O = output_O.to(O_block_ptr.type.element_ty)
     tl.store(O_block_ptr, output_O, boundary_check=(0,))
     tl.store(L_block_ptr,L,boundary_check=(0,))
 
@@ -124,7 +127,7 @@ class MyFlashAttention2Func(torch.autograd.Function):
         output_O_dims=(*Q.shape[:-1],dim_dv)
         output_L_dims=Q.shape[:-1]
         O_flatten= torch.empty((*q2.shape[:-1],dim_dv), device=Q.device,dtype=Q.dtype)
-        L_flatten= torch.empty(q2.shape[:-1], device=Q.device,dtype=Q.dtype)
+        L_flatten= torch.empty(q2.shape[:-1], device=Q.device,dtype=torch.float32)
         scale_attention = 1.0 / math.sqrt(dim_d)
         flash_fwd_kernel[(Tq,dim_batch)](
             q2,k2,v2,O_flatten,L_flatten,
