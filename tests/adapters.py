@@ -5,7 +5,7 @@ from typing import Type
 import torch
 
 from cs336_systems.flashattention_pytorch import MyFlashAttention2Func
-
+from cs336_systems.flashattention_triton import MyFlashAttention2Func as MyFlashAttention2Func_triton
 
 def get_flashattention_autograd_function_pytorch() -> Type:
     """
@@ -33,7 +33,7 @@ def get_flashattention_autograd_function_triton() -> Type:
         A class object (not an instance of the class)
     """
     # For example: return MyTritonFlashAttentionAutogradFunctionClass
-    raise NotImplementedError
+    return  MyFlashAttention2Func_triton  
 
 
 def get_ddp_individual_parameters(module: torch.nn.Module) -> torch.nn.Module:
