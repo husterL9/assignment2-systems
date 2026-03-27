@@ -63,3 +63,18 @@ To submit, run `./test_and_make_submission.sh` . This script will install your
 code's dependencies, run tests, and create a gzipped tarball with the output. We
 should be able to unzip your submitted tarball and run
 `./test_and_make_submission.sh` to verify your test results.
+
+## All-reduce benchmark
+
+You can benchmark single-node multi-process `all_reduce` with:
+
+```sh
+uv run python -m cs336_systems.benchmark_all_reduce \
+  --backends gloo nccl \
+  --world-sizes 2 4 6 \
+  --sizes-mb 1 10 100 1024 \
+  --output-dir benchmark_results/all_reduce
+```
+
+The script writes raw results, pivoted CSV tables, comparison plots, and a short
+markdown report into `benchmark_results/all_reduce/` by default.
