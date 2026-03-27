@@ -44,7 +44,10 @@ def get_random_batch(batch_size: int, seq_len: int, vocab_size: int, device: Uni
 
 def _test_myDDP(rank: int, world_size: int,args):
     backend = "nccl" if torch.cuda.is_available() else "gloo"
+    print(f"[rank {rank}] before setup", flush=True)
     device = _setup_process_group(rank=rank, world_size=world_size, backend=backend)
+    print(f"[rank {rank}] after setup, device={device}, local_rank={rank}", flush=True)
+    print(f"[rank {rank}] after barrier", flush=True)
     dist.barrier()
     cfg = BenchmarkConfig(
         vocab_size=args.vocab_size,
@@ -75,10 +78,11 @@ def _test_myDDP(rank: int, world_size: int,args):
         ddp_model_param_name,
         ddp_model_parameter,
     ) in zip(non_parallel_model.named_parameters(), ddp_model.named_parameters()):
-        is_no_grad_fixed_param = (
-            "no_grad_fixed_param" in ddp_model_param_name or "no_grad_fixed_param" in non_parallel_param_name
-        )
-        if rank == 0 or is_no_grad_fixed_param:
+        # is_no_grad_fixed_param = (
+        #     "no_grad_fixed_param" in ddp_model_param_name or "no_grad_fixed_param" in non_parallel_param_name
+        # )
+        # if rank == 0 or is_no_grad_fixed_param:
+        if rank == 0 :
             assert torch.allclose(non_parallel_model_parameter, ddp_model_parameter)
         else:
             assert not torch.allclose(non_parallel_model_parameter, ddp_model_parameter)

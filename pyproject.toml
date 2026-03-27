@@ -11,8 +11,8 @@ dependencies = [
     "numpy",
     "pytest>=8",
     "regex>=2024.11.6",
-    "torch~=2.6.0; sys_platform != 'darwin' or platform_machine != 'x86_64'",
-    "torch~=2.2.2; sys_platform == 'darwin' and platform_machine == 'x86_64'", # Intel Macs
+    "torch>=2.7,<2.8; sys_platform == 'linux'",
+    "torch~=2.2.2; sys_platform == 'darwin' and platform_machine == 'x86_64'",# Intel Macs
     "tqdm>=4.67.1",
     "wandb>=0.19.7",
     "pandas>=2",
@@ -30,6 +30,9 @@ module-root = ""
 [tool.uv]
 package = true
 python-preference = "managed"
+override-dependencies = [
+    "torch>=2.7,<2.8; sys_platform == 'linux'",
+]
 
 [[tool.uv.index]]
 name = "tsinghua"
@@ -37,14 +40,14 @@ url = "https://pypi.tuna.tsinghua.edu.cn/simple"
 default = true
 
 [[tool.uv.index]]
-name = "pytorch-cu126"
-url = "https://download.pytorch.org/whl/cu126"
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
 explicit = true
 
 [tool.uv.sources]
 cs336-basics = { path = "./cs336-basics", editable = true }  # Change this path to your assignment1-basics repo you want to use your own implementation!
 torch = [
-  { index = "pytorch-cu126", marker = "sys_platform == 'linux'" },
+  { index = "pytorch-cu128", marker = "sys_platform == 'linux'" },
 ]
 
 
