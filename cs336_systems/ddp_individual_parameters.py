@@ -7,8 +7,12 @@ class DDPIndividualParameters(torch.nn.Module):
         super().__init__()
         self.module=module
         with torch.no_grad():
-            for param in self.module.parameters():
-                dist.broadcast(param, src=0)
+            for name, param in module.named_parameters():
+                print(f"[rank {dist.get_rank()}] before broadcast: {name}, device={param.device}, shape={tuple(param.shape)}")
+                torch.cuda.synchronize(param.device)
+                dist.broadcast(param.data, src=0)
+                torch.cuda.synchronize(param.device)
+                print(f"[rank {dist.get_rank()}] after broadcast: {name}")
 
     def forward(self,x):
         return self.module(x)

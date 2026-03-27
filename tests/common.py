@@ -80,9 +80,10 @@ def _setup_process_group(rank, world_size, backend):
             torch.cuda.set_device(local_rank)
         else:
             raise ValueError("Unable to find CUDA devices.")
-        device = f"cuda:{local_rank}"
+        device = torch.device(f"cuda:{local_rank}")
+
     else:
-        device = "cpu"
+        device = torch.device("cpu")
     # initialize the process group
     dist.init_process_group(backend, rank=rank, world_size=world_size)
     return device

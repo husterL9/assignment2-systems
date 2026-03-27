@@ -2,10 +2,9 @@ import argparse
 from copy import deepcopy
 from dataclasses import dataclass
 import time
-from typing import Optional, Type, Union
+from typing import Union
 import torch.nn.functional as F
 
-import pytest
 import torch
 import torch.distributed as dist
 import torch.optim as optim
@@ -20,7 +19,7 @@ from tests.common import (_cleanup_process_group,
 
 @dataclass
 class BenchmarkConfig:
-    vocab_size: int = 50304
+    vocab_size: int = 1000
     seq_len: int = 1024
     global_batch_size: int = 8
     d_model:int=768
@@ -43,12 +42,21 @@ def get_random_batch(batch_size: int, seq_len: int, vocab_size: int, device: Uni
     return idx, targets
 
 def _test_myDDP(rank: int, world_size: int,args):
+    
     backend = "nccl" if torch.cuda.is_available() else "gloo"
-    print(f"[rank {rank}] before setup", flush=True)
     device = _setup_process_group(rank=rank, world_size=world_size, backend=backend)
     print(f"[rank {rank}] after setup, device={device}, local_rank={rank}", flush=True)
+    if device.type == "cuda":
+        dist.barrier(device_ids=[device.index])
+    else:
+        dist.barrier()    
     print(f"[rank {rank}] after barrier", flush=True)
-    dist.barrier()
+    tmp = torch.randn(1000, 768, device=device)
+    print(f"[rank {rank}] tmp before: {tmp[0,0].item()}", flush=True)
+    dist.broadcast(tmp, src=0)
+    torch.cuda.synchronize(device)
+    print(f"[rank {rank}] tmp after: {tmp[0,0].item()}", flush=True)
+
     cfg = BenchmarkConfig(
         vocab_size=args.vocab_size,
         seq_len=args.seq_len,
@@ -66,6 +74,7 @@ def _test_myDDP(rank: int, world_size: int,args):
     assert cfg.global_batch_size % world_size == 0, \
         "global_batch_size must be divisible by world_size"
     torch.manual_seed(rank)
+
     non_parallel_model = BasicsTransformerLM(cfg.vocab_size,
                                              cfg.seq_len,cfg.d_model,
                                              cfg.num_layers
@@ -73,6 +82,11 @@ def _test_myDDP(rank: int, world_size: int,args):
                                              cfg.rope_theta).to(device)
     non_parallel_model.train()  
     ddp_base = deepcopy(non_parallel_model)
+    tmp = torch.randn(1000, 768, device=device)
+    print(f"[rank {dist.get_rank()}] tmp before:", tmp[0, 0].item())
+    dist.broadcast(tmp, src=0)
+    torch.cuda.synchronize()
+    print(f"[rank {dist.get_rank()}] tmp after:", tmp[0, 0].item())
     ddp_model = DDPIndividualParameters(ddp_base)
     for (non_parallel_param_name, non_parallel_model_parameter), (
         ddp_model_param_name,
@@ -245,7 +259,7 @@ def main():
     parser.add_argument("--nproc_per_node", type=int, default=2)
     parser.add_argument("--master_addr", type=str, default="127.0.0.1")
     parser.add_argument("--master_port", type=str, default="29500")
-    parser.add_argument("--vocab_size", type=int, default=50304)
+    parser.add_argument("--vocab_size", type=int, default=1000)
     parser.add_argument("--seq_len", type=int, default=1024)
     parser.add_argument("--global_batch_size", type=int, default=8)
     parser.add_argument("--d_model", type=int, default=1600)
