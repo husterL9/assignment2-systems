@@ -29,7 +29,7 @@ class DDPIndividualParameters(torch.nn.Module):
                 continue
             grads_buffer.append(param.grad)
             # param.grad /= world_size
-        flat = _flatten_dense_tensors(self.reduce_buffer)
+        flat = _flatten_dense_tensors(grads_buffer)
         dist.all_reduce(flat.grad, op=dist.ReduceOp.SUM)
         flat.div_(world_size)
         synced_grads = _unflatten_dense_tensors(flat, grads_buffer)
