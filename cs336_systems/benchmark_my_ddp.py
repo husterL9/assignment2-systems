@@ -45,18 +45,17 @@ def _test_myDDP(rank: int, world_size: int,args):
     
     backend = "nccl" if torch.cuda.is_available() else "gloo"
     device = _setup_process_group(rank=rank, world_size=world_size, backend=backend)
-    print(f"[rank {rank}] after setup, device={device}, local_rank={rank}", flush=True)
+    # print(f"[rank {rank}] after setup, device={device}, local_rank={rank}", flush=True)
     if device.type == "cuda":
-        print("======================\n")
         dist.barrier(device_ids=[device.index])
     else:
         dist.barrier()    
-    print(f"[rank {rank}] after barrier", flush=True)
-    tmp = torch.randn(1000, 768, device=device, dtype=torch.float32)
-    print(f"[rank {rank}] tmp before: {tmp[0,0].item()}", flush=True)
-    dist.broadcast(tmp, src=0)
-    torch.cuda.synchronize(device)
-    print(f"[rank {rank}] tmp after: {tmp[0,0].item()}", flush=True)
+    # print(f"[rank {rank}] after barrier", flush=True)
+    # tmp = torch.randn(1000, 768, device=device, dtype=torch.float32)
+    # print(f"[rank {rank}] tmp before: {tmp[0,0].item()}", flush=True)
+    # dist.broadcast(tmp, src=0)
+    # torch.cuda.synchronize(device)
+    # print(f"[rank {rank}] tmp after: {tmp[0,0].item()}", flush=True)
 
     cfg = BenchmarkConfig(
         vocab_size=args.vocab_size,
@@ -84,23 +83,22 @@ def _test_myDDP(rank: int, world_size: int,args):
     non_parallel_model.train()  
     ddp_base = deepcopy(non_parallel_model)
     tmp = torch.randn(1000, 768, device=device)
-    print(f"[rank {dist.get_rank()}] tmp before:", tmp[0, 0].item())
+    # print(f"[rank {dist.get_rank()}] tmp before:", tmp[0, 0].item())
     dist.broadcast(tmp, src=0)
     torch.cuda.synchronize()
-    print(f"[rank {dist.get_rank()}] tmp after:", tmp[0, 0].item())
+    # print(f"[rank {dist.get_rank()}] tmp after:", tmp[0, 0].item())
     ddp_model = DDPIndividualParameters(ddp_base)
     for (non_parallel_param_name, non_parallel_model_parameter), (
         ddp_model_param_name,
         ddp_model_parameter,
     ) in zip(non_parallel_model.named_parameters(), ddp_model.named_parameters()):
-        # is_no_grad_fixed_param = (
-        #     "no_grad_fixed_param" in ddp_model_param_name or "no_grad_fixed_param" in non_parallel_param_name
-        # )
-        # if rank == 0 or is_no_grad_fixed_param:
+
         if rank == 0 :
             assert torch.allclose(non_parallel_model_parameter, ddp_model_parameter)
         else:
-            assert not torch.allclose(non_parallel_model_parameter, ddp_model_parameter)
+            assert not torch.allclose(non_parallel_model_parameter, ddp_model_parameter),(
+            f"[rank {rank}] expected different but got equal: "
+            f"{non_parallel_param_name} <-> {ddp_model_param_name}")
 
     validate_ddp_net_equivalence(ddp_model)
 
