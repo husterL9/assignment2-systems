@@ -7,6 +7,8 @@ class DDPIndividualParameters(torch.nn.Module):
         self.module=module
         self._post_accumulate_handles=[]
         self._grad_sync_handles=[]
+        self.world_size = dist.get_world_size()
+
         with torch.no_grad():
             # for name, param in module.named_parameters():
             #     print(f"[rank {dist.get_rank()}] before broadcast: {name}, device={param.device}, shape={tuple(param.shape)}")
