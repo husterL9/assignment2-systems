@@ -129,6 +129,7 @@ def _test_myDDP(rank: int, world_size: int,args):
     comm_times = []
     noDPP_iter_times=[]
     for i in range(total_steps):
+        print(f"第{i+1}次迭代==============================")
         ddp_optimizer.zero_grad()
         non_parallel_optimizer.zero_grad()
 
