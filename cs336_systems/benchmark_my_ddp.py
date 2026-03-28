@@ -19,8 +19,8 @@ from tests.common import (_cleanup_process_group,
 
 @dataclass
 class BenchmarkConfig:
-    vocab_size: int = 1000
-    seq_len: int = 1024
+    vocab_size: int = 10_000
+    seq_len: int = 258
     global_batch_size: int = 8
     d_model:int=768
     d_ff:int=3072
@@ -267,8 +267,8 @@ def main():
     parser.add_argument("--nproc_per_node", type=int, default=2)
     parser.add_argument("--master_addr", type=str, default="127.0.0.1")
     parser.add_argument("--master_port", type=str, default="29500")
-    parser.add_argument("--vocab_size", type=int, default=1000)
-    parser.add_argument("--seq_len", type=int, default=1024)
+    parser.add_argument("--vocab_size", type=int, default=10_000)
+    parser.add_argument("--seq_len", type=int, default=128)
     parser.add_argument("--global_batch_size", type=int, default=8)
     parser.add_argument("--d_model", type=int, default=1600)
     parser.add_argument("--num_heads", type=int, default=25)
