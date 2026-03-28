@@ -147,6 +147,12 @@ def _test_myDDP(rank: int, world_size: int,args):
             torch.cuda.synchronize(device)
         start = time.perf_counter()
 
+        #参数快照
+        non_parallel_before_step = {
+            name: param.detach().clone()
+            for name, param in non_parallel_model.named_parameters()
+        }
+
         non_parallel_outputs = non_parallel_model(non_parallel_data)
         non_parallel_loss = loss_fn(non_parallel_outputs.view(-1,cfg.vocab_size), non_parallel_labels.view(-1))
         non_parallel_loss.backward()
@@ -160,15 +166,27 @@ def _test_myDDP(rank: int, world_size: int,args):
         # from the parameters of the DDP model (since we've applied the
         # gradient step to the non-parallel model, but not to the DDP model).
         if rank == 0:
-            for non_parallel_model_parameter, ddp_model_parameter in zip(
-                non_parallel_model.parameters(), ddp_model.parameters()
-            ):
-                if non_parallel_model_parameter.requires_grad and ddp_model_parameter.requires_grad:
-                    # The only parameters that change are those that require_grad
-                    assert not torch.allclose(non_parallel_model_parameter, ddp_model_parameter)
+            num_updated = 0
+            for (non_parallel_param_name, non_parallel_model_parameter), (
+                _,
+                ddp_model_parameter,
+            ) in zip(non_parallel_model.named_parameters(), ddp_model.named_parameters()):
+                was_updated = not torch.equal(
+                    non_parallel_before_step[non_parallel_param_name],
+                    non_parallel_model_parameter,
+                )
+
+                if was_updated:
+                    num_updated += 1
+                    assert not torch.equal(
+                        non_parallel_model_parameter, ddp_model_parameter
+                    ), non_parallel_param_name
                 else:
-                    # parameters that don't require_grad shouldn't change
-                    assert torch.allclose(non_parallel_model_parameter, ddp_model_parameter)
+                    assert torch.equal(
+                        non_parallel_model_parameter, ddp_model_parameter
+                    ), non_parallel_param_name
+
+            assert num_updated > 0, "non-parallel optimizer step did not update any parameter"
 
         # While the non-parallel model does a forward pass on all the data (20 examples),
         # each DDP rank only sees 10 (disjoint) examples.
