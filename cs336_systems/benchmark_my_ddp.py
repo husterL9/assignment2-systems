@@ -236,8 +236,8 @@ def _test_myDDP(rank: int, world_size: int,args):
                 f"step={i:03d} "
                 f"loss={ddp_loss.item():.4f} "
                 f"iter_time={iter_time*1000:.2f} ms "
-                f"comm_time={comm_time*1000:.2f} ms"
-                f"comm_time={noDPP_iter_time*1000:.2f} ms"
+                f"comm_time={comm_time*1000:.2f} ms "
+                f"noDPP_iter_time={noDPP_iter_time*1000:.2f} ms"
             )
         # At this point, the non-parallel model should exactly match the parameters of the DDP model
         if rank == 0:
