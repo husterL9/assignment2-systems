@@ -10,7 +10,7 @@ def worker(rank, world_size):
     torch.cuda.set_device(rank)
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
 
-    x = torch.randn(8, 8, device=f"cuda:{rank}")
+    x = torch.randn(800, 800, device=f"cuda:{rank}")
     if rank == 0:
         x.fill_(1.0)
     else:

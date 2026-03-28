@@ -47,11 +47,12 @@ def _test_myDDP(rank: int, world_size: int,args):
     device = _setup_process_group(rank=rank, world_size=world_size, backend=backend)
     print(f"[rank {rank}] after setup, device={device}, local_rank={rank}", flush=True)
     if device.type == "cuda":
+        print("======================\n")
         dist.barrier(device_ids=[device.index])
     else:
         dist.barrier()    
     print(f"[rank {rank}] after barrier", flush=True)
-    tmp = torch.randn(1000, 768, device=device)
+    tmp = torch.randn(1000, 768, device=device, dtype=torch.float32)
     print(f"[rank {rank}] tmp before: {tmp[0,0].item()}", flush=True)
     dist.broadcast(tmp, src=0)
     torch.cuda.synchronize(device)
