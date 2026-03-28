@@ -1,7 +1,5 @@
 import torch
 import torch.distributed as dist
-
-import torch
 from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
 class DDPIndividualParameters(torch.nn.Module):
     def __init__(self,module: torch.nn.Module):
@@ -29,8 +27,10 @@ class DDPIndividualParameters(torch.nn.Module):
                 continue
             grads_buffer.append(param.grad)
             # param.grad /= world_size
+        if not grads_buffer:
+            return
         flat = _flatten_dense_tensors(grads_buffer)
-        dist.all_reduce(flat.grad, op=dist.ReduceOp.SUM)
+        dist.all_reduce(flat, op=dist.ReduceOp.SUM)
         flat.div_(world_size)
         synced_grads = _unflatten_dense_tensors(flat, grads_buffer)
         for grad, synced_grad in zip(grads_buffer, synced_grads):
