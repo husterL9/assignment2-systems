@@ -4,7 +4,7 @@ from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
 
 class Bucket:
     def __init__(self,bucket_size_mb) -> None:
-        self.bucket_size_bytes:int=bucket_size_mb*1_000*1_000
+        self.bucket_size_bytes:float=bucket_size_mb*1_000*1_000
         self.pending=0
         self.flat_grads:torch.Tensor | None = None
         self.param_list: list[torch.nn.Parameter] = []
